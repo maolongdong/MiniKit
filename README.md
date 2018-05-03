@@ -18,8 +18,17 @@ wx.onTouchMove(function (res) {
 wx.onTouchEnd(function (res) {
   gesture.onTouchEnd(res);
 });
-
 ```
+
+
+* 按下
+```js
+gesture.on('showPress', (event) => {
+  let x = event.x;
+  let y = event.y;
+});
+```
+
 * 单击
 ```js
 gesture.on('click', (event) => {
