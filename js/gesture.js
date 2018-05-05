@@ -2,6 +2,8 @@ const TOUCH_SLOP = 8;
 const SHOW_PRESS_TIMEOUT = 100;
 const DEFAULT_LONG_PRESS_TIMEOUT = 500;
 const DOUBLE_TAP_TIMEOUT = 300;
+const MINIMUM_FLING_VELOCITY = 2;
+const MAXIMUM_FLING_VELOCITY = 100;
 
 export default class Gesture {
   constructor() {
@@ -15,11 +17,12 @@ export default class Gesture {
     this.fireClickTimer; // might be canceled by double click
     this.scrollX = 0;
     this.scrollY = 0;
+    this.velocityTracker = new VelocityTracker();
   }
 
   onTouchStart(event) {
-    var x = event.touches[0].pageX;
-    var y = event.touches[0].pageY;
+    let x = event.touches[0].pageX;
+    let y = event.touches[0].pageY;
 
     if (Math.abs(x - this.down.x) > TOUCH_SLOP
       || Math.abs(y - this.down.y) > TOUCH_SLOP) {
@@ -48,8 +51,9 @@ export default class Gesture {
   }
 
   onTouchMove(event) {
-    var x = event.touches[0].pageX;
-    var y = event.touches[0].pageY;
+    let x = event.touches[0].pageX;
+    let y = event.touches[0].pageY;
+    this.velocityTracker.addMovement({ x: x, y: y, time: new Date().getTime() });
     if (Math.abs(x - this.down.x) > TOUCH_SLOP 
     || Math.abs(y - this.down.y) > TOUCH_SLOP) {
       this.cancelClick = true;
@@ -67,8 +71,8 @@ export default class Gesture {
   }
 
   onTouchEnd(event) {
-    var x = event.changedTouches[0].pageX;
-    var y = event.changedTouches[0].pageY;
+    let x = event.changedTouches[0].pageX;
+    let y = event.changedTouches[0].pageY;
     if (Math.abs(x - this.down.x) > TOUCH_SLOP
       || Math.abs(y - this.down.y) > TOUCH_SLOP) {
       this.cancelClick = true;
@@ -77,7 +81,7 @@ export default class Gesture {
 
     clearTimeout(this.fireShowPressTimer);
 
-    var upTime = new Date().getTime();
+    let upTime = new Date().getTime();
     if (!this.cancelClick) {
       this.click++;
       if (this.click == 2) {
@@ -92,6 +96,11 @@ export default class Gesture {
           this.click = 0;
         }, DOUBLE_TAP_TIMEOUT);
       }
+    } else {
+      this.velocityTracker.computeCurrentVelocity(10);
+      let vx = this.velocityTracker.getXVelocity();
+      let vy = this.velocityTracker.getYVelocity();
+      this.fireEvent('fling', this.down, { x: x, y: y, time: upTime }, vx, vy);
     }
   }
 
@@ -111,5 +120,63 @@ export default class Gesture {
       this.click = 0;
       this.fireEvent('click', event);
     }
+  }
+}
+
+class VelocityTracker {
+  constructor() {
+    this.movements = [];
+    this.velocity = {vx:0, vy:0};
+  }
+
+  addMovement(movement) {
+    if (this.movements.length >= 5) {
+      this.movements.splice(0, 1);
+    }
+    this.movements.push(movement);
+  }
+
+  computeCurrentVelocity(factor) {
+    let length = this.movements.length;
+    if (length < 2) {
+      return;
+    }
+    let fx = this.movements[0].x;
+    let lx = this.movements[length - 1].x;
+    let fy = this.movements[0].y;
+    let ly = this.movements[length - 1].y;
+    let ft = this.movements[0].time;
+    let lt = this.movements[length - 1].time;
+    this.velocity.vx = (lx - fx) / (lt - ft) * factor;
+    this.velocity.vy = (ly - fy) / (lt - ft) * factor;
+
+    if (Math.abs(this.velocity.vx) < MINIMUM_FLING_VELOCITY) {
+      this.velocity.vx = 0;
+    } else if (Math.abs(this.velocity.vx) > MAXIMUM_FLING_VELOCITY) {
+      this.velocity.vx = this.getSign(this.velocity.vx) * MAXIMUM_FLING_VELOCITY;
+    }
+
+    if (Math.abs(this.velocity.vy) < MINIMUM_FLING_VELOCITY) {
+      this.velocity.vy = 0;
+    } else if (Math.abs(this.velocity.vy) > MAXIMUM_FLING_VELOCITY) {
+      this.velocity.vy = this.getSign(this.velocity.vy) * MAXIMUM_FLING_VELOCITY;
+    }
+  }
+
+  getXVelocity() {
+    return this.velocity.vx;
+  }
+
+  getYVelocity() {
+    return this.velocity.vy;
+  }
+
+  clear() {
+    this.movements = [];
+    this.velocity = { vx: 0, vy: 0 };
+  }
+
+  getSign(num) {
+    return num < 0 ? -1 : 1;
   }
 }

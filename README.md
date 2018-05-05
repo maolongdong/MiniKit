@@ -60,3 +60,10 @@ gesture.on('scroll', (event, dx, dy) => {
   scrollX += dx;
 });
 ```
+
+* fling
+```js
+gesture.on('fling', (down, event, vx, vy) => {
+  // vx, vy为速度
+});
+```
